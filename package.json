@@ -1,0 +1,11 @@
+{
+  "name": "youtube-screenshots",
+  "version": "1.0.0",
+  "scripts": {
+    "capture": "node capture.js",
+    "scheduler": "node scheduler.js"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}
