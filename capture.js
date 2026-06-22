@@ -113,17 +113,13 @@ async function captureYoutube() {
     // Set highest available quality
     await setHighestQuality(page);
 
-    // Wait for the video to have actual frame data (readyState >= 2 = HAVE_CURRENT_DATA)
+    // Live streams have duration=Infinity so we wait for readyState >= 1 (metadata loaded)
+    // then add a buffer for a full frame to be painted
     await page.waitForFunction(
-      () => {
-        const v = document.querySelector("video");
-        return v && v.readyState >= 2 && !v.paused === false || (v && v.readyState >= 2);
-      },
+      () => { const v = document.querySelector("video"); return v && v.readyState >= 1; },
       { timeout: 20000 }
-    ).catch(() => console.log("Video readyState wait timed out, continuing"));
-
-    // Extra buffer so a full frame is painted
-    await page.waitForTimeout(3000);
+    ).catch(() => {});
+    await page.waitForTimeout(5000);
 
     // Screenshot just the raw video element — clean frame, no UI chrome
     const video = page.locator("video").first();
