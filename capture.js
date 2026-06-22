@@ -85,10 +85,21 @@ async function captureYoutube() {
   const screenshotsDir = path.join(__dirname, "screenshots", dateDir);
   fs.mkdirSync(screenshotsDir, { recursive: true });
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--disable-blink-features=AutomationControlled"],
+  });
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   });
+
+  // Remove the webdriver property that YouTube uses to detect headless browsers
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+
   const page = await context.newPage();
 
   try {
@@ -101,6 +112,14 @@ async function captureYoutube() {
       await page.waitForTimeout(1000);
     } catch {
       // No dialog
+    }
+
+    // If YouTube shows an error page, reload once and try again
+    const hasError = await page.locator("yt-error-screen, .yt-playability-error-supported-renderers").count() > 0;
+    if (hasError) {
+      console.log("YouTube error detected, reloading...");
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.waitForTimeout(3000);
     }
 
     // Wait for the player to appear
@@ -131,7 +150,22 @@ async function captureYoutube() {
   }
 }
 
-captureYoutube().catch((err) => {
-  console.error("Capture failed:", err);
+async function captureWithRetry(maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await captureYoutube();
+      return;
+    } catch (err) {
+      console.error(`Attempt ${attempt}/${maxAttempts} failed:`, err.message);
+      if (attempt < maxAttempts) {
+        const wait = attempt * 15000;
+        console.log(`Retrying in ${wait / 1000}s...`);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+  }
+  console.error("All attempts failed.");
   process.exit(1);
-});
+}
+
+captureWithRetry();
