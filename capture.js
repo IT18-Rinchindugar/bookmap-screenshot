@@ -1,6 +1,18 @@
+require("dotenv").config();
 const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+
+const s3 = new S3Client({ region: process.env.AWS_REGION || "ap-southeast-1" });
+
+async function uploadToS3(filePath, s3Key) {
+  const bucket = process.env.AWS_BUCKET;
+  if (!bucket) { console.log("AWS_BUCKET not set, skipping S3 upload."); return; }
+  const body = fs.readFileSync(filePath);
+  await s3.send(new PutObjectCommand({ Bucket: bucket, Key: s3Key, Body: body, ContentType: "image/png" }));
+  console.log(`Uploaded to s3://${bucket}/${s3Key}`);
+}
 
 const YOUTUBE_URL = "https://www.youtube.com/watch?v=_Y_EwBS8Xkw";
 const AD_WAIT_MAX_MS = 60_000;
@@ -91,6 +103,7 @@ async function captureYoutube() {
   });
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
+    deviceScaleFactor: 2,
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   });
@@ -145,6 +158,7 @@ async function captureYoutube() {
     const filename = path.join(screenshotsDir, `gc_bookmap_${timeStamp}.png`);
     await video.screenshot({ path: filename });
     console.log(`Saved: ${filename}`);
+    await uploadToS3(filename, `${dateDir}/gc_bookmap_${timeStamp}.png`);
   } finally {
     await browser.close();
   }

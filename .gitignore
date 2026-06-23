@@ -2,5 +2,6 @@
 /node_modules
 /screenshots
 
+.env
 .DS_Store
 capture.log
