@@ -2,17 +2,18 @@ const { execFile } = require("child_process");
 const path = require("path");
 
 const SCRIPT = path.join(__dirname, "capture.js");
+const INTERVAL_MINUTES = Number(process.argv[2]) || 30;
 
 function isWeekend() {
   const day = new Date().getDay(); // 0=Sun, 6=Sat
   return day === 0 || day === 6;
 }
 
-function msUntilNextHour() {
+function msUntilNext(intervalMinutes) {
   const now = new Date();
   const next = new Date(now);
-  next.setMinutes(0, 0, 0);
-  next.setHours(next.getHours() + 1);
+  next.setSeconds(0, 0);
+  next.setMinutes((Math.floor(now.getMinutes() / intervalMinutes) + 1) * intervalMinutes);
   return next - now;
 }
 
@@ -36,14 +37,14 @@ function runCapture() {
 }
 
 function scheduleNext() {
-  const ms = msUntilNextHour();
+  const ms = msUntilNext(INTERVAL_MINUTES);
   const next = new Date(Date.now() + ms);
   console.log(`Next run at: ${next.toLocaleString()}`);
   setTimeout(runCapture, ms);
 }
 
-console.log("Scheduler started. Runs every hour, Mon–Fri only.");
+console.log(`Scheduler started. Runs every ${INTERVAL_MINUTES} minutes, Mon–Fri only.`);
 console.log("Press Ctrl+C to stop.");
 
-// Run once immediately, then schedule hourly
+// Run once immediately, then schedule every 30 minutes
 runCapture();
