@@ -15,14 +15,20 @@ async function uploadToS3(filePath, s3Key) {
 }
 
 const YOUTUBE_URL = "https://www.youtube.com/watch?v=_Y_EwBS8Xkw";
-const AD_WAIT_MAX_MS = 60_000;
+// Ad pods can contain multiple back-to-back ads (e.g. "1 of 3"), so the
+// cutoff needs enough headroom to wait out the whole pod, not just one ad.
+const AD_WAIT_MAX_MS = 180_000;
+
+async function isAdShowing(page) {
+  return (await page.locator(".ad-showing").count()) > 0;
+}
 
 async function skipOrWaitAds(page) {
   const start = Date.now();
 
   while (Date.now() - start < AD_WAIT_MAX_MS) {
-    const isAd = await page.locator(".ad-showing").count() > 0;
-    if (!isAd) break;
+    const isAd = await isAdShowing(page);
+    if (!isAd) return;
 
     const skipBtn = page.locator(
       ".ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern"
@@ -40,6 +46,10 @@ async function skipOrWaitAds(page) {
       console.log("Non-skippable ad playing, waiting...");
       await page.waitForTimeout(3000);
     }
+  }
+
+  if (await isAdShowing(page)) {
+    console.log("Ad still showing after max wait, proceeding anyway");
   }
 }
 
@@ -144,6 +154,13 @@ async function captureYoutube() {
 
     // Set highest available quality
     await setHighestQuality(page);
+
+    // A new ad can start during quality-setting/buffering; make sure it's
+    // clear before we treat the frame as the real stream.
+    if (await isAdShowing(page)) {
+      console.log("Ad appeared after quality selection, waiting again...");
+      await skipOrWaitAds(page);
+    }
 
     // Live streams have duration=Infinity so we wait for readyState >= 1 (metadata loaded)
     // then add a buffer for a full frame to be painted
