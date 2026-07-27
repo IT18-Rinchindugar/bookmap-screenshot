@@ -39,6 +39,13 @@ async function skipOrWaitAds(page) {
         await skipBtn.first().click({ timeout: 2000 });
         console.log("Clicked skip ad button");
         await page.waitForTimeout(1500);
+
+        // If skipping revealed the real video (no further ad queued in the
+        // pod), set quality right away instead of waiting for this whole
+        // function to return.
+        if (!(await isAdShowing(page))) {
+          await setHighestQuality(page);
+        }
       } catch {
         // Button disappeared, loop again
       }
