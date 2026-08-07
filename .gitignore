@@ -5,3 +5,6 @@
 .env
 .DS_Store
 capture.log
+youtube_auth.json
+cookies_export.json
+cookies.json

@@ -118,11 +118,18 @@ async function captureYoutube() {
     headless: true,
     args: ["--disable-blink-features=AutomationControlled"],
   });
+
+  // Anonymous requests from datacenter IPs get YouTube's "sign in to confirm
+  // you're not a bot" wall. youtube_auth.json holds a real signed-in
+  // session (generated locally via convert_cookies.js, since Google blocks
+  // login attempts from automation-controlled browsers) which avoids it.
+  const authFile = path.join(__dirname, "youtube_auth.json");
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 2,
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    storageState: fs.existsSync(authFile) ? authFile : undefined,
   });
 
   // Remove the webdriver property that YouTube uses to detect headless browsers
