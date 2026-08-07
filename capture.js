@@ -130,6 +130,16 @@ async function captureYoutube() {
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
   });
 
+  // Pre-accept Google's GDPR consent wall so it never renders. Without this,
+  // servers with an EU-geolocated IP get a consent interstitial (in the
+  // local language) that hides #movie_player and the "Accept all" click
+  // below never matches because the button text isn't English there.
+  await context.addCookies([
+    { name: "CONSENT", value: "YES+", domain: ".youtube.com", path: "/" },
+    { name: "CONSENT", value: "YES+", domain: ".google.com", path: "/" },
+    { name: "SOCS", value: "CAESEwgDEgk0ODAxNzk3MjQaAmVuIAEaBgiA_LyaBg", domain: ".youtube.com", path: "/" },
+  ]);
+
   const page = await context.newPage();
 
   try {
