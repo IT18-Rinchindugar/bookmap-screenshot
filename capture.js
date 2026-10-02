@@ -2,7 +2,7 @@ require("dotenv").config();
 const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || "ap-southeast-1" });
 
@@ -12,6 +12,41 @@ async function uploadToS3(filePath, s3Key) {
   const body = fs.readFileSync(filePath);
   await s3.send(new PutObjectCommand({ Bucket: bucket, Key: s3Key, Body: body, ContentType: "image/png" }));
   console.log(`Uploaded to s3://${bucket}/${s3Key}`);
+}
+
+// Adds the new screenshot to manifest.json in the bucket, which the GC Replay
+// viewer reads to list days/times. Same format as the viewer's `npm run images`.
+async function addToManifest(dateDir, timeStamp) {
+  const bucket = process.env.AWS_BUCKET;
+  if (!bucket) return;
+  const Key = "manifest.json";
+
+  let manifest;
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key }));
+    manifest = JSON.parse(await res.Body.transformToString());
+  } catch (err) {
+    if (err.name !== "NoSuchKey") throw err;
+    manifest = {
+      sourceUtcOffset: 7,
+      days: {},
+      files: { full: "{day}/gc_bookmap_{t}.png", thumb: "{day}/gc_bookmap_{t}.png" },
+    };
+  }
+
+  const times = new Set(manifest.days[dateDir] || []);
+  times.add(timeStamp);
+  manifest.days[dateDir] = [...times].sort();
+  manifest.generated = new Date().toISOString();
+
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key,
+    Body: JSON.stringify(manifest),
+    ContentType: "application/json",
+    CacheControl: "no-cache",
+  }));
+  console.log(`Manifest updated: ${dateDir} ${timeStamp}`);
 }
 
 const YOUTUBE_URL = "https://www.youtube.com/watch?v=_Y_EwBS8Xkw";
@@ -200,6 +235,12 @@ async function captureYoutube() {
     await video.screenshot({ path: filename });
     console.log(`Saved: ${filename}`);
     await uploadToS3(filename, `${dateDir}/gc_bookmap_${timeStamp}.png`);
+    try {
+      await addToManifest(dateDir, timeStamp);
+    } catch (err) {
+      // The screenshot is already saved; don't retry the whole capture for this.
+      console.error("Manifest update failed:", err.message);
+    }
   } finally {
     await browser.close();
   }
