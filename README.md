@@ -9,6 +9,16 @@ npm install
 npx playwright install chromium
 ```
 
+## S3 upload (GC Replay viewer)
+
+```bash
+cp .env.example .env   # then fill in the AWS keys
+```
+
+With `AWS_BUCKET` set, each screenshot is uploaded to `s3://<bucket>/YYYY-MM-DD/gc_bookmap_HH-MM-SS.png`
+and added to `manifest.json` in the bucket, so the viewer shows it right away.
+Without `.env`, screenshots are only saved locally.
+
 ## Usage
 
 ### One-off capture
